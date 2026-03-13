@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US–Iran Intelligence Monitor | OSINT Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#020609;--surface:#060d14;--surface2:#0a1520;--border:#132030;--border2:#1a2d42;
+--red:#e05252;--amber:#d4900a;--blue:#3a7fd4;--cyan:#1aa0b8;--purple:#8060c8;--green:#28a070;
+--text:#c8d4e0;--text-dim:#6a7a8a;--text-bright:#e8f0f8;
+--serif:'Libre Baskerville',Georgia,serif;--mono:'Share Tech Mono','Courier New',monospace;
+}
+html{font-size:14px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--serif);line-height:1.6;min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+a{color:var(--blue);text-decoration:none}
+
+/* ANIMATIONS */
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulseRing{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.5);opacity:0}}
+@keyframes scanLine{0%{left:-30%}100%{left:130%}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+@keyframes slideIn{from{opacity:0;max-height:0}to{opacity:1;max-height:600px}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.fade-up{animation:fadeUp .5s ease both}
+.fade-up-1{animation-delay:.05s}.fade-up-2{animation-delay:.1s}.fade-up-3{animation-delay:.15s}
+.fade-up-4{animation-delay:.2s}.fade-up-5{animation-delay:.25s}.fade-up-6{animation-delay:.3s}
+
+/* LAYOUT */
+.app{max-width:1600px;margin:0 auto;padding:0 20px 40px}
+.main-grid{display:grid;grid-template-columns:1fr 380px;gap:20px;align-items:start}
+@media(max-width:1100px){.main-grid{grid-template-columns:1fr}.sidebar{position:static!important}}
+
+/* HEADER */
+.header{padding:20px 0 16px;border-bottom:1px solid var(--border)}
+.header-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.site-title{font-family:var(--mono);font-size:1.1rem;letter-spacing:3px;color:var(--text-bright);text-transform:uppercase}
+.site-title span{color:var(--red)}
+.header-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.source-badge{font-family:var(--mono);font-size:.7rem;padding:3px 10px;border:1px solid var(--border2);color:var(--text-dim);letter-spacing:1px;border-radius:3px;background:var(--surface)}
+.source-badge.news{border-color:var(--blue);color:var(--blue)}
+.source-badge.naval{border-color:var(--cyan);color:var(--cyan)}
+.source-badge.aircraft{border-color:var(--purple);color:var(--purple)}
+.source-badge.centcom{border-color:var(--amber);color:var(--amber)}
+.source-badge.notam{border-color:#d07020;color:#d07020}
+
+/* API KEY INPUT */
+.api-key-section{display:flex;align-items:center;gap:8px;padding:12px 0;flex-wrap:wrap}
+.api-key-section label{font-family:var(--mono);font-size:.75rem;color:var(--text-dim);letter-spacing:1px}
+.api-key-input{background:var(--surface);border:1px solid var(--border2);color:var(--text);font-family:var(--mono);font-size:.8rem;padding:6px 12px;width:320px;border-radius:4px;outline:none}
+.api-key-input:focus{border-color:var(--blue)}
+.btn{font-family:var(--mono);font-size:.75rem;letter-spacing:1px;padding:7px 16px;border:1px solid var(--border2);background:var(--surface);color:var(--text);cursor:pointer;border-radius:4px;transition:border-color .2s,color .2s}
+.btn:hover{border-color:var(--text-dim);color:var(--text-bright)}
+.btn-primary{border-color:var(--red);color:var(--red)}
+.btn-primary:hover{background:rgba(224,82,82,.1);border-color:var(--red);color:#ff7070}
+.btn-sm{padding:4px 10px;font-size:.7rem}
+.toggle-wrap{display:flex;align-items:center;gap:6px}
+.toggle-wrap label{font-family:var(--mono);font-size:.7rem;color:var(--text-dim)}
+.toggle{width:36px;height:18px;background:var(--border);border-radius:9px;position:relative;cursor:pointer;transition:background .2s}
+.toggle.active{background:var(--green)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;background:var(--text);border-radius:50%;transition:left .2s}
+.toggle.active::after{left:20px}
+.last-scan{font-family:var(--mono);font-size:.7rem;color:var(--text-dim)}
+
+/* THREAT BANNER */
+.threat-banner{padding:14px 20px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;gap:14px;margin:16px 0;transition:all .3s}
+.threat-banner.low{background:rgba(40,160,112,.08);border-color:var(--green)}
+.threat-banner.guarded{background:rgba(58,127,212,.08);border-color:var(--blue)}
+.threat-banner.elevated{background:rgba(212,144,10,.08);border-color:var(--amber)}
+.threat-banner.high{background:rgba(224,120,50,.08);border-color:#e07832}
+.threat-banner.critical{background:rgba(224,82,82,.1);border-color:var(--red)}
+.threat-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;position:relative}
+.threat-dot.pulse{animation:pulse 1.5s infinite}
+.threat-dot .ring{position:absolute;inset:-4px;border-radius:50%;border:1px solid currentColor;animation:pulseRing 2s infinite}
+.threat-level-label{font-family:var(--mono);font-size:1rem;letter-spacing:3px;font-weight:700}
+.threat-reason{font-size:.9rem;color:var(--text-dim);flex:1}
+
+/* EXEC SUMMARY */
+.exec-summary{border-left:3px solid var(--blue);padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:0 6px 6px 0;margin-bottom:16px;font-size:.95rem;line-height:1.7}
+
+/* STATS ROW */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;text-align:center}
+.stat-value{font-family:var(--mono);font-size:1.8rem;color:var(--text-bright);line-height:1}
+.stat-label{font-family:var(--mono);font-size:.65rem;color:var(--text-dim);letter-spacing:1px;margin-top:6px;text-transform:uppercase}
+
+/* CORRELATION ALERTS */
+.section-title{font-family:var(--mono);font-size:.8rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.corr-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:10px;overflow:hidden;transition:border-color .2s}
+.corr-card:hover{border-color:var(--border2)}
+.corr-card.sev-high{border-left:3px solid var(--red)}
+.corr-card.sev-medium{border-left:3px solid var(--amber)}
+.corr-card.sev-low{border-left:3px solid var(--blue)}
+.corr-header{padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:10px}
+.corr-header .sev-badge{font-family:var(--mono);font-size:.65rem;padding:2px 8px;border-radius:3px;letter-spacing:1px}
+.sev-badge.high{background:rgba(224,82,82,.15);color:var(--red);border:1px solid rgba(224,82,82,.3)}
+.sev-badge.medium{background:rgba(212,144,10,.15);color:var(--amber);border:1px solid rgba(212,144,10,.3)}
+.sev-badge.low{background:rgba(58,127,212,.15);color:var(--blue);border:1px solid rgba(58,127,212,.3)}
+.corr-title{font-size:.95rem;color:var(--text-bright);flex:1}
+.corr-toggle{font-family:var(--mono);font-size:.8rem;color:var(--text-dim);transition:transform .2s}
+.corr-toggle.open{transform:rotate(90deg)}
+.corr-body{display:none;padding:0 16px 14px;animation:slideIn .3s ease}
+.corr-body.show{display:block}
+.signal-tags{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.signal-tag{font-family:var(--mono);font-size:.65rem;padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;color:var(--text-dim)}
+.analyst-note{background:rgba(128,96,200,.06);border:1px solid rgba(128,96,200,.2);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:.85rem;font-style:italic;color:var(--text)}
+.analyst-note::before{content:'ANALYST NOTE';font-family:var(--mono);font-size:.6rem;letter-spacing:1px;color:var(--purple);display:block;margin-bottom:4px}
+
+/* FILTER BUTTONS */
+.filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.filter-btn{font-family:var(--mono);font-size:.65rem;padding:4px 12px;border:1px solid var(--border2);background:transparent;color:var(--text-dim);cursor:pointer;border-radius:3px;letter-spacing:1px;transition:all .2s}
+.filter-btn:hover,.filter-btn.active{color:var(--text-bright);border-color:var(--text-dim);background:var(--surface)}
+.filter-btn.active{border-color:var(--blue);color:var(--blue)}
+
+/* TIMELINE */
+.timeline{position:relative;padding-left:28px}
+.timeline::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--border2)}
+.tl-item{position:relative;margin-bottom:14px;animation:fadeUp .4s ease both}
+.tl-dot{position:absolute;left:-24px;top:16px;width:9px;height:9px;border-radius:50%;border:1px solid var(--border2);background:var(--surface)}
+.tl-dot.news{border-color:var(--blue);background:var(--blue)}.tl-dot.naval{border-color:var(--cyan);background:var(--cyan)}
+.tl-dot.aircraft{border-color:var(--purple);background:var(--purple)}.tl-dot.centcom{border-color:var(--amber);background:var(--amber)}
+.tl-dot.notam{border-color:#d07020;background:#d07020}
+.tl-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px 16px;cursor:pointer;transition:border-color .2s}
+.tl-card:hover{border-color:var(--border2)}
+.tl-card.correlated{border-left:3px solid var(--red)}
+.tl-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+.tl-badge{font-family:var(--mono);font-size:.6rem;padding:2px 7px;border-radius:3px;letter-spacing:.5px}
+.tl-badge.src-news{background:rgba(58,127,212,.12);color:var(--blue);border:1px solid rgba(58,127,212,.25)}
+.tl-badge.src-naval{background:rgba(26,160,184,.12);color:var(--cyan);border:1px solid rgba(26,160,184,.25)}
+.tl-badge.src-aircraft{background:rgba(128,96,200,.12);color:var(--purple);border:1px solid rgba(128,96,200,.25)}
+.tl-badge.src-centcom{background:rgba(212,144,10,.12);color:var(--amber);border:1px solid rgba(212,144,10,.25)}
+.tl-badge.src-notam{background:rgba(208,112,32,.12);color:#d07020;border:1px solid rgba(208,112,32,.25)}
+.tl-badge.cat{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border2)}
+.tl-badge.unverified{background:rgba(224,82,82,.1);color:var(--red);border:1px solid rgba(224,82,82,.25)}
+.tl-badge.propaganda{background:rgba(224,82,82,.15);color:#ff6060;border:1px solid rgba(224,82,82,.3)}
+.tl-badge.corr-badge{background:rgba(128,96,200,.12);color:var(--purple);border:1px solid rgba(128,96,200,.3)}
+.tl-headline{font-size:1rem;color:var(--text-bright);margin-bottom:6px;line-height:1.4}
+.tl-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.conf-bar-wrap{display:flex;align-items:center;gap:6px}
+.conf-bar{width:60px;height:5px;background:var(--border);border-radius:2px;overflow:hidden}
+.conf-fill{height:100%;border-radius:2px;transition:width .4s}
+.conf-label{font-family:var(--mono);font-size:.6rem;letter-spacing:.5px}
+.tl-time{font-family:var(--mono);font-size:.65rem;color:var(--text-dim)}
+.tl-asset{font-family:var(--mono);font-size:.65rem;color:var(--cyan)}
+.tl-detail{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:.85rem;line-height:1.6;color:var(--text-dim);animation:slideIn .3s ease}
+.tl-detail.show{display:block}
+.tl-detail .detail-row{margin-bottom:6px}
+.tl-detail .detail-label{font-family:var(--mono);font-size:.6rem;color:var(--text-dim);letter-spacing:1px;margin-bottom:2px}
+.source-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.source-tag{font-family:var(--mono);font-size:.6rem;padding:2px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:2px;color:var(--text-dim)}
+
+/* SIDEBAR */
+.sidebar{position:sticky;top:20px;display:flex;flex-direction:column;gap:14px}
+.side-panel{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.side-panel-title{font-family:var(--mono);font-size:.7rem;letter-spacing:2px;color:var(--text-dim);text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}
+
+/* THEATER MAP */
+.theater-map{position:relative;width:100%;aspect-ratio:1.4;background:var(--surface2);overflow:hidden}
+.theater-map svg{width:100%;height:100%}
+.map-dot{cursor:pointer;transition:r .2s}
+.map-label{font-family:var(--mono);font-size:8px;fill:var(--text-dim);pointer-events:none}
+.map-water{font-family:var(--mono);font-size:7px;fill:rgba(58,127,212,.35);font-style:italic;pointer-events:none}
+.ship-icon{font-size:12px;cursor:pointer}
+.dark-blink{animation:blink 1s infinite}
+
+/* NAVAL LIST */
+.asset-item{padding:8px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;font-size:.8rem}
+.asset-item:last-child{border-bottom:none}
+.asset-name{font-family:var(--mono);font-size:.75rem;color:var(--text-bright);flex:1}
+.asset-type{font-family:var(--mono);font-size:.6rem;padding:2px 6px;background:var(--surface2);border:1px solid var(--border2);border-radius:2px;color:var(--text-dim)}
+.status-badge{font-family:var(--mono);font-size:.6rem;padding:2px 6px;border-radius:2px}
+.status-deployed{background:rgba(40,160,112,.15);color:var(--green);border:1px solid rgba(40,160,112,.3)}
+.status-transiting{background:rgba(212,144,10,.15);color:var(--amber);border:1px solid rgba(212,144,10,.3)}
+.status-dark{background:rgba(224,82,82,.15);color:var(--red);border:1px solid rgba(224,82,82,.3);animation:pulse 1.5s infinite}
+.status-unknown{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border2)}
+.asset-loc{font-family:var(--mono);font-size:.65rem;color:var(--text-dim)}
+
+/* AIR & NOTAM */
+.air-item,.notam-item{padding:8px 14px;border-bottom:1px solid var(--border);font-size:.8rem}
+.air-item:last-child,.notam-item:last-child{border-bottom:none}
+.air-platform{font-family:var(--mono);font-size:.75rem;color:var(--purple)}
+.air-activity{color:var(--text);margin:2px 0}
+.air-sig{font-style:italic;color:var(--text-dim);font-size:.8rem}
+.notam-area{font-family:var(--mono);font-size:.75rem;color:#d07020}
+.notam-restriction{color:var(--text);margin:2px 0}
+.notam-period{font-family:var(--mono);font-size:.65rem;color:var(--text-dim)}
+.notam-sig{font-style:italic;color:var(--text-dim);font-size:.8rem}
+
+/* SOURCE HEALTH */
+.sh-item{padding:6px 14px;display:flex;align-items:center;gap:8px;font-size:.75rem}
+.sh-name{font-family:var(--mono);font-size:.7rem;color:var(--text);width:100px}
+.sh-bar-bg{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.sh-bar-fill{height:100%;border-radius:3px;background:var(--blue)}
+.sh-bias{font-family:var(--mono);font-size:.6rem;padding:1px 5px;border-radius:2px}
+.sh-bias.center{background:rgba(40,160,112,.15);color:var(--green)}.sh-bias.left{background:rgba(58,127,212,.15);color:var(--blue)}.sh-bias.right{background:rgba(208,112,32,.15);color:#d07020}
+.sh-rel{font-family:var(--mono);font-size:.65rem;color:var(--text-dim)}
+
+/* CONFIDENCE GUIDE */
+.conf-guide{padding:10px 14px}
+.conf-guide-item{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.65rem;color:var(--text-dim);margin-bottom:4px}
+.conf-swatch{width:10px;height:10px;border-radius:2px}
+
+/* LOADING */
+.loading-overlay{display:none;position:fixed;inset:0;background:rgba(2,6,9,.92);z-index:1000;display:none;align-items:center;justify-content:center}
+.loading-overlay.show{display:flex}
+.loading-card{background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:40px 50px;text-align:center;position:relative;overflow:hidden;min-width:400px}
+.loading-card::after{content:'';position:absolute;top:0;left:-30%;width:30%;height:100%;background:linear-gradient(90deg,transparent,rgba(58,127,212,.08),transparent);animation:scanLine 2s linear infinite}
+.loading-spinner{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px}
+.loading-phase{font-family:var(--mono);font-size:.8rem;color:var(--blue);letter-spacing:1px;min-height:20px}
+.loading-sub{font-family:var(--mono);font-size:.65rem;color:var(--text-dim);margin-top:8px}
+
+/* ERROR */
+.error-box{background:rgba(224,82,82,.06);border:1px solid rgba(224,82,82,.25);border-radius:6px;padding:16px 20px;margin:16px 0;color:var(--red);font-family:var(--mono);font-size:.8rem;white-space:pre-wrap;word-break:break-all;max-height:400px;overflow:auto}
+
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:60px 20px;color:var(--text-dim)}
+.empty-state .es-icon{font-size:3rem;margin-bottom:16px;opacity:.3}
+.empty-state .es-text{font-family:var(--mono);font-size:.8rem;letter-spacing:1px}
+
+/* CLASSIFICATION BANNER */
+.class-banner{background:var(--red);color:#fff;font-family:var(--mono);font-size:.65rem;letter-spacing:3px;text-align:center;padding:3px 0;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div class="class-banner">OPEN SOURCE INTELLIGENCE — UNCLASSIFIED // FOR EDUCATIONAL USE ONLY</div>
+
+<div class="app">
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-top">
+      <div class="site-title">US–IRAN <span>INTELLIGENCE</span> MONITOR</div>
+      <div class="header-controls">
+        <div class="toggle-wrap">
+          <label>AUTO-REFRESH</label>
+          <div class="toggle" id="autoToggle" onclick="toggleAuto()"></div>
+        </div>
+        <span class="last-scan" id="lastScan">NO SCAN YET</span>
+      </div>
+    </div>
+    <div class="badge-row">
+      <span class="source-badge news">NEWS</span>
+      <span class="source-badge naval">NAVAL / AIS</span>
+      <span class="source-badge aircraft">ADS-B</span>
+      <span class="source-badge centcom">CENTCOM</span>
+      <span class="source-badge notam">FAA NOTAM</span>
+    </div>
+  </header>
+
+  <!-- API KEY -->
+  <div class="api-key-section">
+    <label>API KEY:</label>
+    <input type="password" class="api-key-input" id="apiKeyInput" placeholder="sk-ant-api03-...">
+    <button class="btn btn-sm" onclick="toggleKeyVis()">SHOW</button>
+    <button class="btn btn-primary" id="scanBtn" onclick="runScan()">▶ RUN SCAN</button>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="contentArea">
+    <div class="empty-state">
+      <div class="es-icon">◎</div>
+      <div class="es-text">ENTER API KEY AND RUN SCAN TO BEGIN INTELLIGENCE COLLECTION</div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <div class="loading-phase" id="loadingPhase">Initializing scan…</div>
+    <div class="loading-sub">Querying multiple OSINT sources via web search</div>
+  </div>
+</div>
+
+<script>
+// --- STATE ---
+let apiKey = '';
+let autoInterval = null;
+let currentData = null;
+let activeFilter = 'ALL';
+
+const PHASES = [
+  'Searching news sources…','Querying naval trackers…','Scanning ADS-B feeds…',
+  'Checking CENTCOM releases…','Reviewing FAA NOTAMs…','Running correlation analysis…','Building intelligence picture…'
+];
+
+const THREAT_COLORS = {LOW:'green',GUARDED:'blue',ELEVATED:'amber',HIGH:'high',CRITICAL:'critical'};
+const SRC_COLORS = {NEWS:'blue',NAVAL:'cyan',AIRCRAFT:'purple',CENTCOM:'amber',NOTAM:'#d07020'};
+const TYPE_LABELS = {CVN:'Carrier',DDG:'Destroyer',CG:'Cruiser',SSN:'Submarine',ARG:'Amphib',LHD:'Amphib',LPD:'Transport'};
+
+// --- HELPERS ---
+function $(id){return document.getElementById(id)}
+function toggleKeyVis(){const i=$('apiKeyInput');i.type=i.type==='password'?'text':'password'}
+function toggleAuto(){
+  const t=$('autoToggle');
+  t.classList.toggle('active');
+  if(t.classList.contains('active')){
+    autoInterval=setInterval(runScan,300000);
+  }else{
+    clearInterval(autoInterval);autoInterval=null;
+  }
+}
+
+function timeAgo(ts){
+  try{
+    const d=new Date(ts);if(isNaN(d))return ts;
+    const s=Math.floor((Date.now()-d)/1000);
+    if(s<60)return s+'s ago';if(s<3600)return Math.floor(s/60)+'m ago';
+    if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago';
+  }catch{return ts}
+}
+
+function confColor(c){if(c>=85)return'var(--green)';if(c>=65)return'var(--amber)';if(c>=50)return'#d07020';return'var(--red)'}
+function confLabel(c){if(c>=85)return'HIGH';if(c>=65)return'MOD';if(c>=50)return'LOW';return'UNVERF'}
+
+// --- MAP HELPERS ---
+const MAP_BOUNDS = {minLat:10,maxLat:44,minLng:28,maxLng:80};
+function latToY(lat){return((MAP_BOUNDS.maxLat-lat)/(MAP_BOUNDS.maxLat-MAP_BOUNDS.minLat))*100}
+function lngToX(lng){return((lng-MAP_BOUNDS.minLng)/(MAP_BOUNDS.maxLng-MAP_BOUNDS.minLng))*100}
+
+const REGIONS = [
+  {name:'Iran',lat:32.5,lng:53},{name:'Iraq',lat:33,lng:44},{name:'Syria',lat:35,lng:38},
+  {name:'Lebanon',lat:33.9,lng:35.9},{name:'Yemen',lat:15.5,lng:48},{name:'Saudi Arabia',lat:24,lng:45},
+  {name:'UAE',lat:24,lng:54},{name:'Bahrain',lat:26.1,lng:50.5},{name:'Qatar',lat:25.3,lng:51.2},
+  {name:'Kuwait',lat:29.4,lng:47.9},{name:'Oman',lat:21,lng:57}
+];
+const WATERS = [
+  {name:'Strait of Hormuz',lat:26.5,lng:56.5},{name:'Red Sea',lat:20,lng:38.5},
+  {name:'Arabian Sea',lat:16,lng:62},{name:'Persian Gulf',lat:27,lng:51}
+];
+
+// --- LOADING ---
+function showLoading(){
+  $('loadingOverlay').classList.add('show');
+  let i=0;
+  const iv=setInterval(()=>{
+    $('loadingPhase').textContent=PHASES[i%PHASES.length];i++;
+  },2500);
+  $('loadingOverlay').dataset.iv=iv;
+}
+function hideLoading(){
+  $('loadingOverlay').classList.remove('show');
+  clearInterval(parseInt($('loadingOverlay').dataset.iv));
+}
+
+// --- API CALL ---
+async function runScan(){
+  apiKey=$('apiKeyInput').value.trim();
+  if(!apiKey){alert('Please enter your Anthropic API key');return}
+
+  showLoading();
+
+  const today=new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const year=new Date().getFullYear();
+
+  const systemPrompt=`You are an elite OSINT analyst covering the US-Iran conflict. You have web search. Search ALL of these categories and synthesize them into a unified intelligence picture:
+
+1. NEWS: Latest US-Iran diplomatic, military, economic developments
+2. NAVAL/AIS: US Navy carrier strike group and ship positions — search "USS carrier strike group Persian Gulf ${year}", "US 5th Fleet Bahrain", "US Navy CENTCOM deployment"
+3. AIRCRAFT/ADS-B: US military flight activity near Iran/Gulf — search "B-52 Middle East deployment", "P-8 Poseidon Iran", "USAF Gulf ${year}"
+4. CENTCOM/DOD: Official statements — search "CENTCOM press release Iran", "Pentagon Iran statement ${year}"
+5. FAA NOTAM: Airspace restrictions — search "FAA NOTAM Middle East", "airspace closure Gulf"
+
+CORRELATION RULES (most important):
+- Naval assets moving into Gulf + diplomatic breakdown = HIGH CORRELATION
+- B-52/strike aircraft deploying + CENTCOM silence = STRIKE POSTURE alert
+- NOTAMs closing airspace + ships repositioning = OPERATION POSSIBLE
+- AIS going dark on known vessels = EMISSIONS CONTROL (pre-op indicator)
+- De-escalation rhetoric + simultaneous force buildup = flag as contradictory
+
+Return ONLY a valid JSON object with this exact structure, no markdown, no preamble:
+{
+"fetchedAt":"ISO timestamp",
+"threatLevel":"LOW"|"GUARDED"|"ELEVATED"|"HIGH"|"CRITICAL",
+"threatReason":"one sentence",
+"executiveSummary":"3-4 sentence synthesis across all source types",
+"correlationAlerts":[{"id":"corr_1","title":"short headline","detail":"what signals are converging and why it matters","severity":"HIGH"|"MEDIUM"|"LOW","signals":["Naval: …","Diplomatic: …","ADS-B: …"],"analystNote":"what a professional analyst would infer"}],
+"timelineEvents":[{"id":"evt_1","timestamp":"ISO timestamp","headline":"concise headline","detail":"2-3 sentence factual summary","sourceType":"NEWS"|"NAVAL"|"AIRCRAFT"|"CENTCOM"|"NOTAM","category":"Military"|"Diplomatic"|"Naval"|"Aviation"|"Economic"|"Cyber"|"Nuclear"|"Proxy","confidence":85,"confidenceReason":"why this confidence level","sources":["Source Name"],"isVerified":true,"propagandaFlag":false,"propagandaNote":"","location":{"name":"location","lat":26.0,"lng":56.0,"region":"Gulf"},"assetName":"USS [name] or aircraft type if known, else null","correlationId":"corr_1 or null"}],
+"navalPicture":{"csgsDeployed":1,"knownAssets":[{"name":"USS …","type":"CVN|DDG|CG|SSN|ARG","lastKnownLocation":"region","lat":26.0,"lng":56.0,"status":"DEPLOYED|TRANSITING|DARK|UNKNOWN","note":"brief note"}]},
+"airPicture":{"notableFlights":[{"platform":"B-52H / P-8A / E-3 AWACS / KC-135","activity":"description","region":"region","significance":"why this matters"}]},
+"notams":[{"area":"area name","restriction":"what is restricted","effectivePeriod":"dates if known","significance":"military significance"}],
+"sourceHealth":{"total":10,"breakdown":[{"name":"Reuters","count":3,"bias":"Center","reliability":92}]}
+}`;
+
+  const userMsg=`Today is ${today}. Conduct a full OSINT sweep across all five source categories. Search at minimum: (1) "US Iran conflict ${year}", (2) "US Navy carrier strike group Persian Gulf Arabian Sea ${year}", (3) "CENTCOM statement Iran ${year}", (4) "US military aircraft B-52 Middle East deployment", (5) "FAA NOTAM Middle East airspace". Generate 8-12 timeline events spread across source types. Find 1-3 correlation patterns. Return ONLY valid JSON.`;
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({
+        model:'claude-opus-4-5-20250219',
+        max_tokens:16000,
+        system:systemPrompt,
+        tools:[{"type":"web_search_20250305","name":"web_search"}],
+        messages:[{role:'user',content:userMsg}]
+      })
+    });
+
+    if(!resp.ok){
+      const errText=await resp.text();
+      hideLoading();
+      showError(`API Error ${resp.status}: ${errText}`);
+      return;
+    }
+
+    const data=await resp.json();
+    // Extract text from content blocks
+    let textContent='';
+    if(data.content&&Array.isArray(data.content)){
+      textContent=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    }
+
+    // Find JSON in the text
+    const firstBrace=textContent.indexOf('{');
+    const lastBrace=textContent.lastIndexOf('}');
+    if(firstBrace===-1||lastBrace===-1){
+      hideLoading();
+      showError('No JSON found in response:\n\n'+textContent);
+      return;
+    }
+
+    const jsonStr=textContent.substring(firstBrace,lastBrace+1);
+    let parsed;
+    try{
+      parsed=JSON.parse(jsonStr);
+    }catch(e){
+      hideLoading();
+      showError('JSON Parse Error: '+e.message+'\n\nRaw:\n'+jsonStr);
+      return;
+    }
+
+    currentData=parsed;
+    hideLoading();
+    renderDashboard(parsed);
+    $('lastScan').textContent='LAST SCAN: '+new Date().toLocaleTimeString();
+
+  }catch(err){
+    hideLoading();
+    showError('Network Error: '+err.message);
+  }
+}
+
+function showError(msg){
+  $('contentArea').innerHTML=`<div class="error-box">${escHtml(msg)}</div>`;
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// --- RENDER ---
+function renderDashboard(d){
+  const el=$('contentArea');
+  const threatClass=(d.threatLevel||'LOW').toLowerCase();
+  const needsPulse=['elevated','high','critical'].includes(threatClass);
+  const evtCount=(d.timelineEvents||[]).length;
+  const corrCount=(d.correlationAlerts||[]).length;
+  const navalCount=(d.navalPicture?.knownAssets||[]).length;
+  const airCount=(d.airPicture?.notableFlights||[]).length;
+  const notamCount=(d.notams||[]).length;
+
+  el.innerHTML=`
+    <!-- THREAT BANNER -->
+    <div class="threat-banner ${threatClass} fade-up">
+      <div class="threat-dot ${needsPulse?'pulse':''}" style="background:var(--${threatClass==='high'?'red':threatClass==='critical'?'red':threatClass==='elevated'?'amber':threatClass==='guarded'?'blue':'green'})">
+        ${needsPulse?'<div class="ring" style="border-color:var(--'+(threatClass==='elevated'?'amber':'red')+')"></div>':''}
+      </div>
+      <span class="threat-level-label" style="color:var(--${threatClass==='high'||threatClass==='critical'?'red':threatClass==='elevated'?'amber':threatClass==='guarded'?'blue':'green'})">${d.threatLevel||'UNKNOWN'}</span>
+      <span class="threat-reason">${escHtml(d.threatReason||'')}</span>
+    </div>
+
+    <!-- EXEC SUMMARY -->
+    <div class="exec-summary fade-up fade-up-1">${escHtml(d.executiveSummary||'No summary available.')}</div>
+
+    <!-- STATS -->
+    <div class="stats-row">
+      <div class="stat-card fade-up fade-up-1"><div class="stat-value">${evtCount}</div><div class="stat-label">Events</div></div>
+      <div class="stat-card fade-up fade-up-2"><div class="stat-value">${corrCount}</div><div class="stat-label">Correlations</div></div>
+      <div class="stat-card fade-up fade-up-3"><div class="stat-value">${navalCount}</div><div class="stat-label">Naval Assets</div></div>
+      <div class="stat-card fade-up fade-up-4"><div class="stat-value">${airCount}</div><div class="stat-label">Air Contacts</div></div>
+      <div class="stat-card fade-up fade-up-5"><div class="stat-value">${notamCount}</div><div class="stat-label">NOTAMs</div></div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="main-grid">
+      <div class="main-col">
+        <!-- CORRELATIONS -->
+        ${corrCount?`<div class="section-title fade-up">⚡ CORRELATION ALERTS (${corrCount})</div>`:''}
+        <div id="corrContainer">${renderCorrelations(d.correlationAlerts||[])}</div>
+
+        <!-- TIMELINE -->
+        <div class="section-title fade-up" style="margin-top:20px">UNIFIED TIMELINE (${evtCount} EVENTS)</div>
+        <div class="filter-row" id="filterRow">
+          ${['ALL','NEWS','NAVAL','AIRCRAFT','CENTCOM','NOTAM'].map(f=>`<button class="filter-btn ${f==='ALL'?'active':''}" onclick="setFilter('${f}')">${f}</button>`).join('')}
+        </div>
+        <div class="timeline" id="timelineContainer">${renderTimeline(d.timelineEvents||[])}</div>
+      </div>
+
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <!-- THEATER MAP -->
+        <div class="side-panel">
+          <div class="side-panel-title">THEATER MAP</div>
+          <div class="theater-map">${renderMap(d)}</div>
+        </div>
+
+        <!-- NAVAL -->
+        <div class="side-panel">
+          <div class="side-panel-title">NAVAL PICTURE — ${d.navalPicture?.csgsDeployed||0} CSG DEPLOYED</div>
+          ${renderNaval(d.navalPicture?.knownAssets||[])}
+        </div>
+
+        <!-- AIR -->
+        <div class="side-panel">
+          <div class="side-panel-title">AIR ACTIVITY</div>
+          ${renderAir(d.airPicture?.notableFlights||[])}
+        </div>
+
+        <!-- NOTAMS -->
+        <div class="side-panel">
+          <div class="side-panel-title">FAA NOTAMS</div>
+          ${renderNotams(d.notams||[])}
+        </div>
+
+        <!-- SOURCE HEALTH -->
+        <div class="side-panel">
+          <div class="side-panel-title">SOURCE HEALTH — ${d.sourceHealth?.total||0} SOURCES</div>
+          ${renderSourceHealth(d.sourceHealth?.breakdown||[])}
+        </div>
+
+        <!-- CONF GUIDE -->
+        <div class="side-panel">
+          <div class="side-panel-title">CONFIDENCE GUIDE</div>
+          <div class="conf-guide">
+            <div class="conf-guide-item"><div class="conf-swatch" style="background:var(--green)"></div>90-100% — CONFIRMED (multi-source verified)</div>
+            <div class="conf-guide-item"><div class="conf-swatch" style="background:var(--amber)"></div>70-89% — PROBABLE (multi-source)</div>
+            <div class="conf-guide-item"><div class="conf-swatch" style="background:#d07020"></div>50-69% — POSSIBLE (single source)</div>
+            <div class="conf-guide-item"><div class="conf-swatch" style="background:var(--red)"></div>&lt;50% — UNVERIFIED</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// --- CORRELATION CARDS ---
+function renderCorrelations(corrs){
+  return corrs.map((c,i)=>{
+    const sevClass=(c.severity||'LOW').toLowerCase();
+    return `<div class="corr-card sev-${sevClass} fade-up fade-up-${i+1}">
+      <div class="corr-header" onclick="toggleCorr(this)">
+        <span class="sev-badge ${sevClass}">${c.severity}</span>
+        <span class="corr-title">${escHtml(c.title||'')}</span>
+        <span class="corr-toggle">▸</span>
+      </div>
+      <div class="corr-body">
+        <div style="font-size:.85rem;color:var(--text);margin-bottom:6px">${escHtml(c.detail||'')}</div>
+        <div class="signal-tags">${(c.signals||[]).map(s=>`<span class="signal-tag">${escHtml(s)}</span>`).join('')}</div>
+        <div class="analyst-note">${escHtml(c.analystNote||'')}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleCorr(el){
+  const body=el.nextElementSibling;
+  const arrow=el.querySelector('.corr-toggle');
+  body.classList.toggle('show');
+  arrow.classList.toggle('open');
+}
+
+// --- TIMELINE ---
+function renderTimeline(events){
+  const filtered=activeFilter==='ALL'?events:events.filter(e=>(e.sourceType||'').toUpperCase()===activeFilter);
+  if(!filtered.length)return'<div style="padding:20px;text-align:center;font-family:var(--mono);font-size:.75rem;color:var(--text-dim)">NO EVENTS FOR THIS FILTER</div>';
+
+  return filtered.map((e,i)=>{
+    const srcType=(e.sourceType||'NEWS').toLowerCase();
+    const srcClass='src-'+srcType;
+    const conf=e.confidence||0;
+    const isCorr=e.correlationId&&e.correlationId!=='null';
+    return `<div class="tl-item fade-up" style="animation-delay:${i*0.06}s" data-src="${e.sourceType}">
+      <div class="tl-dot ${srcType}"></div>
+      <div class="tl-card ${isCorr?'correlated':''}" onclick="toggleDetail(this)">
+        <div class="tl-badges">
+          <span class="tl-badge ${srcClass}">${e.sourceType||'NEWS'}</span>
+          <span class="tl-badge cat">${e.category||''}</span>
+          ${!e.isVerified?'<span class="tl-badge unverified">UNVERIFIED</span>':''}
+          ${e.propagandaFlag?'<span class="tl-badge propaganda">⚠ PROPAGANDA RISK</span>':''}
+          ${isCorr?'<span class="tl-badge corr-badge">⬤ CORRELATED</span>':''}
+        </div>
+        <div class="tl-headline">${escHtml(e.headline||'')}</div>
+        <div class="tl-meta">
+          <div class="conf-bar-wrap">
+            <div class="conf-bar"><div class="conf-fill" style="width:${conf}%;background:${confColor(conf)}"></div></div>
+            <span class="conf-label" style="color:${confColor(conf)}">${conf}% ${confLabel(conf)}</span>
+          </div>
+          <span class="tl-time">${timeAgo(e.timestamp)}</span>
+          ${e.assetName&&e.assetName!=='null'?`<span class="tl-asset">${escHtml(e.assetName)}</span>`:''}
+        </div>
+        <div class="tl-detail">
+          <div class="detail-row"><div class="detail-label">DETAIL</div>${escHtml(e.detail||'')}</div>
+          <div class="detail-row"><div class="detail-label">CONFIDENCE RATIONALE</div>${escHtml(e.confidenceReason||'')}</div>
+          ${e.propagandaNote?`<div class="detail-row"><div class="detail-label">PROPAGANDA NOTE</div>${escHtml(e.propagandaNote)}</div>`:''}
+          ${e.location?`<div class="detail-row"><div class="detail-label">LOCATION</div>${escHtml(e.location.name||'')} (${e.location.region||''})</div>`:''}
+          <div class="source-tags">${(e.sources||[]).map(s=>`<span class="source-tag">${escHtml(s)}</span>`).join('')}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDetail(el){
+  const det=el.querySelector('.tl-detail');
+  if(det)det.classList.toggle('show');
+}
+
+function setFilter(f){
+  activeFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>{b.classList.toggle('active',b.textContent===f)});
+  const tc=$('timelineContainer');
+  if(tc&&currentData)tc.innerHTML=renderTimeline(currentData.timelineEvents||[]);
+}
+
+// --- MAP ---
+function renderMap(d){
+  const events=d.timelineEvents||[];
+  const assets=d.navalPicture?.knownAssets||[];
+
+  // Count events per region
+  const regionCounts={};
+  events.forEach(e=>{
+    if(e.location?.name){
+      const n=e.location.name;
+      regionCounts[n]=(regionCounts[n]||0)+1;
+    }
+  });
+
+  let svg=`<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">`;
+  // Background
+  svg+=`<rect width="100" height="100" fill="#040a12"/>`;
+  // Rough coastline hints (simplified)
+  svg+=`<path d="M15,35 Q20,40 22,48 L28,52 Q35,55 42,50 L50,48 Q55,46 58,42 L62,38 Q65,35 70,34"
+    stroke="rgba(26,45,66,0.5)" fill="none" stroke-width="0.3"/>`;
+  svg+=`<path d="M42,50 Q44,54 42,58 L40,62 Q38,66 36,70 L34,75 Q32,78 30,82"
+    stroke="rgba(26,45,66,0.5)" fill="none" stroke-width="0.3"/>`;
+
+  // Water labels
+  WATERS.forEach(w=>{
+    const x=lngToX(w.lng),y=latToY(w.lat);
+    svg+=`<text x="${x}" y="${y}" class="map-water" text-anchor="middle">${w.name}</text>`;
+  });
+
+  // Region dots
+  REGIONS.forEach(r=>{
+    const x=lngToX(r.lng),y=latToY(r.lat);
+    const count=regionCounts[r.name]||0;
+    const baseR=count>0?1.5+Math.min(count,5)*0.5:1;
+    const col=count>2?'var(--red)':count>0?'var(--amber)':'var(--text-dim)';
+    if(count>0){
+      svg+=`<circle cx="${x}" cy="${y}" r="${baseR+2}" fill="none" stroke="${col}" stroke-width="0.3" opacity="0.5">
+        <animate attributeName="r" from="${baseR+1}" to="${baseR+4}" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" from="0.5" to="0" dur="2s" repeatCount="indefinite"/>
+      </circle>`;
+    }
+    svg+=`<circle cx="${x}" cy="${y}" r="${baseR}" fill="${col}" opacity="0.7"/>`;
+    svg+=`<text x="${x}" y="${y-baseR-1.5}" class="map-label" text-anchor="middle">${r.name}</text>`;
+  });
+
+  // Ship icons
+  assets.forEach(a=>{
+    if(a.lat&&a.lng){
+      const x=lngToX(a.lng),y=latToY(a.lat);
+      const isDark=(a.status||'').toUpperCase()==='DARK';
+      svg+=`<text x="${x}" y="${y}" font-size="4" text-anchor="middle" ${isDark?'class="dark-blink"':''}>🚢</text>`;
+      if(isDark){
+        svg+=`<circle cx="${x}" cy="${y-1}" r="1" fill="var(--red)" opacity="0.8">
+          <animate attributeName="opacity" from="1" to="0.2" dur="0.8s" repeatCount="indefinite"/>
+        </circle>`;
+      }
+      svg+=`<text x="${x}" y="${y+3}" font-family="var(--mono)" font-size="2.5" fill="var(--cyan)" text-anchor="middle" opacity="0.8">${escHtml(a.name||'')}</text>`;
+    }
+  });
+
+  // Event location dots
+  events.forEach(e=>{
+    if(e.location?.lat&&e.location?.lng){
+      const x=lngToX(e.location.lng),y=latToY(e.location.lat);
+      const srcType=(e.sourceType||'NEWS').toUpperCase();
+      const col=srcType==='NEWS'?'var(--blue)':srcType==='NAVAL'?'var(--cyan)':srcType==='AIRCRAFT'?'var(--purple)':srcType==='CENTCOM'?'var(--amber)':'#d07020';
+      svg+=`<circle cx="${x}" cy="${y}" r="0.8" fill="${col}" opacity="0.5"/>`;
+    }
+  });
+
+  svg+=`</svg>`;
+  return svg;
+}
+
+// --- NAVAL ---
+function renderNaval(assets){
+  if(!assets.length)return'<div class="asset-item" style="color:var(--text-dim);font-family:var(--mono);font-size:.7rem">NO NAVAL ASSETS REPORTED</div>';
+  return assets.map(a=>{
+    const st=(a.status||'UNKNOWN').toUpperCase();
+    const stClass=st==='DEPLOYED'?'status-deployed':st==='TRANSITING'?'status-transiting':st==='DARK'?'status-dark':'status-unknown';
+    return `<div class="asset-item">
+      <span class="asset-type">${TYPE_LABELS[a.type]||a.type||'?'}</span>
+      <span class="asset-name">${escHtml(a.name||'Unknown')}</span>
+      <span class="status-badge ${stClass}">${st}</span>
+      <span class="asset-loc">${escHtml(a.lastKnownLocation||'')}</span>
+    </div>`;
+  }).join('');
+}
+
+// --- AIR ---
+function renderAir(flights){
+  if(!flights.length)return'<div class="air-item" style="color:var(--text-dim);font-family:var(--mono);font-size:.7rem">NO AIR ACTIVITY REPORTED</div>';
+  return flights.map(f=>`<div class="air-item">
+    <div class="air-platform">${escHtml(f.platform||'')}</div>
+    <div class="air-activity">${escHtml(f.activity||'')}</div>
+    <div style="font-family:var(--mono);font-size:.65rem;color:var(--text-dim);margin:2px 0">${escHtml(f.region||'')}</div>
+    <div class="air-sig">${escHtml(f.significance||'')}</div>
+  </div>`).join('');
+}
+
+// --- NOTAMS ---
+function renderNotams(notams){
+  if(!notams.length)return'<div class="notam-item" style="color:var(--text-dim);font-family:var(--mono);font-size:.7rem">NO NOTAMS REPORTED</div>';
+  return notams.map(n=>`<div class="notam-item">
+    <div class="notam-area">${escHtml(n.area||'')}</div>
+    <div class="notam-restriction">${escHtml(n.restriction||'')}</div>
+    <div class="notam-period">${escHtml(n.effectivePeriod||'')}</div>
+    <div class="notam-sig">${escHtml(n.significance||'')}</div>
+  </div>`).join('');
+}
+
+// --- SOURCE HEALTH ---
+function renderSourceHealth(sources){
+  if(!sources.length)return'<div style="padding:10px 14px;font-family:var(--mono);font-size:.7rem;color:var(--text-dim)">NO SOURCE DATA</div>';
+  const maxCount=Math.max(...sources.map(s=>s.count||1));
+  return sources.map(s=>{
+    const biasClass=(s.bias||'Center').toLowerCase().includes('center')?'center':(s.bias||'').toLowerCase().includes('left')?'left':'right';
+    const pct=((s.count||1)/maxCount)*100;
+    return `<div class="sh-item">
+      <span class="sh-name">${escHtml(s.name||'')}</span>
+      <div class="sh-bar-bg"><div class="sh-bar-fill" style="width:${pct}%"></div></div>
+      <span class="sh-bias ${biasClass}">${s.bias||'?'}</span>
+      <span class="sh-rel">${s.reliability||0}%</span>
+    </div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
